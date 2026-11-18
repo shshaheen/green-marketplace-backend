@@ -77,3 +77,24 @@ There is no public registration. Admins are created with `npm run seed:admin`.
   stored only as SHA-256 hashes. Each refresh returns a new pair.
 - Failed logins are limited to 5 per IP and email every 15 minutes.
 - Deactivating an admin (`isActive: false`) blocks them immediately, even with a valid token.
+
+## Categories
+
+Two levels: top-level categories (`parent: null`) and subcategories under them.
+
+| Method | Path                           | Notes                                                          |
+| ------ | ------------------------------ | -------------------------------------------------------------- |
+| GET    | `/api/v1/categories`           | Public. Active categories, each with its active subcategories  |
+| GET    | `/api/v1/admin/categories`     | `?parent=<id or root>&isActive=&search=&includeDeleted=&page=` |
+| POST   | `/api/v1/admin/categories`     | `{ name, description?, parent?, sortOrder?, isActive? }`       |
+| GET    | `/api/v1/admin/categories/:id` |                                                                |
+| PATCH  | `/api/v1/admin/categories/:id` | Any of the create fields                                       |
+| DELETE | `/api/v1/admin/categories/:id` | Soft delete                                                    |
+
+- Names are unique among siblings, ignoring case. Slugs are generated from the name and kept
+  unique (`flowering`, `flowering-2`, …); renaming regenerates the slug.
+- A subcategory's parent must be a top-level category, and a category that has
+  subcategories cannot itself be moved under another category.
+- Deleting is refused while the category has subcategories. Deleted categories are hidden
+  everywhere unless `includeDeleted=true`.
+- Deactivating a category also hides its subcategories from the public tree.
