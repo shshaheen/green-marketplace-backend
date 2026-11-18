@@ -30,6 +30,33 @@ export function createApiLimiter() {
   });
 }
 
+function perIpLimiter(windowMs: number, limit: number, skipSuccessfulRequests = false) {
+  return rateLimit({
+    windowMs,
+    limit,
+    skipSuccessfulRequests,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: clientIp,
+    handler: tooManyRequests,
+  });
+}
+
+/** Order request submissions: slows down spam from a single IP. */
+export function createSubmitLimiter() {
+  return perIpLimiter(60 * 60 * 1000, 10);
+}
+
+/** Reference + phone lookups. Only failed lookups count, to stop guessing. */
+export function createTrackLookupLimiter() {
+  return perIpLimiter(FIFTEEN_MINUTES, 10, true);
+}
+
+/** Token-based tracking and cancelling. */
+export function createCustomerActionLimiter() {
+  return perIpLimiter(FIFTEEN_MINUTES, 60);
+}
+
 /** Failed admin logins, keyed by IP + email. Successful logins are not counted. */
 export function createLoginLimiter() {
   return rateLimit({

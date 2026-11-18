@@ -1,6 +1,6 @@
 # Green Marketplace Backend
 
-REST API for the Green Marketplace plant-commerce platform: a bulk-plant enquiry service
+REST API for the Green Marketplace plant-commerce platform: a bulk-plant order request service
 connecting customers with a nursery. Built with Node.js, Express 5, TypeScript and MongoDB.
 
 ## Requirements
@@ -157,6 +157,78 @@ Create body:
   `full_sun`, `partial_shade`, `full_shade`, `indirect_light`.
 - Images: JPEG, PNG or WebP, up to 5 MB each and 10 per plant. File contents are checked,
   not just the declared type. The first image is the main one.
-- Deleting a plant keeps its images in Cloudinary so existing enquiries can still show them.
+- Deleting a plant keeps its images in Cloudinary so existing order requests can still show them.
 - A category cannot be deleted or moved while non-deleted plants use it.
 - Without Cloudinary settings (allowed outside production) image uploads return 503.
+
+## Order Requests
+
+An Order Request is a customer's intention to buy plants. It is **not a confirmed order**:
+the nursery reviews it, contacts the customer, agrees price and delivery, and handles payment
+offline. Customers have no accounts; a tracking token returned at submission identifies them.
+
+### Customer
+
+| Method | Path                                             | Notes                                                       |
+| ------ | ------------------------------------------------ | ----------------------------------------------------------- |
+| POST   | `/api/v1/order-requests`                         | Submit Request. Returns the reference number and token      |
+| GET    | `/api/v1/order-requests/track/:token`            | Track Request                                               |
+| POST   | `/api/v1/order-requests/track`                   | `{ referenceNumber, phone }`, fallback if the token is lost |
+| POST   | `/api/v1/order-requests/:referenceNumber/cancel` | `{ token, reason? }`, Cancel Request                        |
+
+Submit body:
+
+```json
+{
+  "customerDetails": {
+    "name": "Asha Rao",
+    "phone": "9876543210",
+    "email": "asha@example.com",
+    "location": "Farmhouse, Shamshabad, Hyderabad",
+    "pincode": "501218"
+  },
+  "items": [{ "plantId": "<plant id>", "quantity": 40 }],
+  "intendedUse": "farmhouse",
+  "preferredDeliveryDate": "2026-12-15",
+  "additionalNotes": "Need delivery before the monsoon"
+}
+```
+
+- Reference numbers look like `ORD-2026-00001`; the counter restarts each year (India time).
+- The `trackingToken` (43 characters) is returned **only once**, at submission. The app must
+  store it for My Requests, tracking and cancelling. Only its SHA-256 hash is stored, and
+  tokens in `/track/:token` URLs are redacted from logs.
+- The reference + phone lookup is read-only (it cannot cancel) and limited to 10 failed
+  attempts per IP every 15 minutes. Submissions are limited to 10 per IP per hour.
+- Phone: 10-digit Indian mobile (`+91`, spaces and dashes are accepted and removed).
+  Pincode: 6 digits. Email optional. Delivery date `YYYY-MM-DD`, today or later.
+- `intendedUse`: `resort`, `farmhouse`, `home`, `landscaping`, `garden`, `commercial`, `other`.
+- Up to 50 distinct plants. Each must be visible in the catalogue and meet its minimum order
+  quantity. Out-of-stock plants can be requested.
+- Plant name, unit, indicative price, main image and availability are copied from the
+  catalogue at submission (`*Snapshot` fields) and never change afterwards.
+- `estimatedTotal` is indicative only.
+- Customer responses never include phone, email, location, admin notes or status notes.
+
+### Admin
+
+| Method | Path                                      | Notes                                         |
+| ------ | ----------------------------------------- | --------------------------------------------- |
+| GET    | `/api/v1/admin/order-requests`            | `?status=&search=&page=&limit=`, newest first |
+| GET    | `/api/v1/admin/order-requests/:id`        | Includes history, notes, `allowedTransitions` |
+| PATCH  | `/api/v1/admin/order-requests/:id/status` | `{ status, note? }`, Update Request Status    |
+| PATCH  | `/api/v1/admin/order-requests/:id/notes`  | `{ adminNotes }` (`null` clears)              |
+
+`search` matches the reference number, customer name or phone.
+
+### Status lifecycle
+
+```
+submitted → under_review → contacted → accepted → completed
+submitted / under_review / contacted → rejected   (admin)
+submitted / under_review / contacted → cancelled  (customer)
+accepted → cancelled                              (admin, note required)
+```
+
+Changes go one step at a time, never backwards; `completed`, `rejected` and `cancelled` are
+final. Every change is recorded in `statusHistory` with who made it and when.

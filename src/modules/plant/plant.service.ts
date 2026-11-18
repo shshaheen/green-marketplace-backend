@@ -231,6 +231,14 @@ export async function getPublicPlant(idOrSlug: string): Promise<PublicPlantDetai
   return toDetail(record);
 }
 
+/** Plants a customer can currently request, i.e. visible in the catalogue, keyed by id. */
+export async function getRequestablePlants(ids: string[]): Promise<Map<string, PlantRecord>> {
+  const records = await Plant.find({
+    $and: [await publicVisibilityFilter(), { _id: { $in: ids } }],
+  }).lean();
+  return new Map(records.map((record) => [record._id.toString(), record]));
+}
+
 // ── Admin operations ───────────────────────────────────────────────────────
 
 export async function listAdminPlants(
@@ -300,7 +308,7 @@ export async function setPlantStatus(
 }
 
 /**
- * Soft delete. Images stay in storage because existing enquiries may still show them.
+ * Soft delete. Images stay in storage because existing order requests may still show them.
  */
 export async function deletePlant(id: string, adminId: string): Promise<void> {
   const plant = await loadPlant(id);

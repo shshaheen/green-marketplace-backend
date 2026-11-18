@@ -9,6 +9,7 @@ import { createApiLimiter } from './middlewares/rateLimiters.js';
 import { createApiRouter } from './routes/index.js';
 import { sendSuccess } from './utils/apiResponse.js';
 import { logger } from './utils/logger.js';
+import { redactUrl } from './utils/redact.js';
 
 export function createApp(): Express {
   const app = express();
@@ -24,7 +25,16 @@ export function createApp(): Express {
     }),
   );
   app.use(express.json({ limit: '100kb' }));
-  if (!isTest) app.use(pinoHttp({ logger }));
+  if (!isTest) {
+    app.use(
+      pinoHttp({
+        logger,
+        serializers: {
+          req: (req: { url?: string }) => ({ ...req, url: redactUrl(req.url) }),
+        },
+      }),
+    );
+  }
 
   app.get('/health', (_req, res) => {
     const up = isDatabaseConnected();

@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { ApiError, ErrorCode } from '../utils/ApiError.js';
 import { sendError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
+import { redactUrl } from '../utils/redact.js';
 
 export const notFoundHandler: RequestHandler = (req, _res, next) => {
   next(ApiError.notFound(`Route ${req.method} ${req.path} not found`));
@@ -75,6 +76,6 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   }
 
   // Unexpected: log the full error server-side, never leak internals to the client.
-  logger.error({ err, method: req.method, path: req.path }, 'Unhandled error');
+  logger.error({ err, method: req.method, path: redactUrl(req.path) }, 'Unhandled error');
   return sendError(res, 500, ErrorCode.INTERNAL_ERROR, 'Something went wrong');
 };
