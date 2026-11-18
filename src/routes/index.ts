@@ -5,6 +5,7 @@ import {
   createAdminCategoryRouter,
   createPublicCategoryRouter,
 } from '../modules/category/category.routes.js';
+import { createAdminDashboardRouter } from '../modules/dashboard/dashboard.routes.js';
 import {
   createAdminOrderRequestRouter,
   createCustomerOrderRequestRouter,
@@ -25,6 +26,7 @@ export function createApiRouter(): Router {
   router.use('/admin/categories', authenticate, createAdminCategoryRouter());
   router.use('/admin/plants', authenticate, createAdminPlantRouter());
   router.use('/admin/order-requests', authenticate, createAdminOrderRequestRouter());
+  router.use('/admin/dashboard', authenticate, createAdminDashboardRouter());
 
   return router;
 }

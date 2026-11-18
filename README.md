@@ -232,3 +232,37 @@ accepted → cancelled                              (admin, note required)
 
 Changes go one step at a time, never backwards; `completed`, `rejected` and `cancelled` are
 final. Every change is recorded in `statusHistory` with who made it and when.
+
+## Admin Dashboard
+
+`GET /api/v1/admin/dashboard/stats` (admin auth) returns:
+
+```json
+{
+  "orderRequests": {
+    "total": 4,
+    "newRequests": 1,
+    "byStatus": {
+      "submitted": 1,
+      "under_review": 1,
+      "contacted": 1,
+      "accepted": 0,
+      "completed": 0,
+      "rejected": 1,
+      "cancelled": 0
+    },
+    "received": { "today": 3, "last7Days": 3, "last30Days": 4 }
+  },
+  "plants": { "active": 3, "outOfStock": 1 },
+  "topRequestedPlants": [
+    { "plantId": "…", "plantName": "Jade", "requestCount": 3, "totalQuantity": 31 }
+  ],
+  "recentRequests": ["… up to 5 order request summaries, newest first …"]
+}
+```
+
+- **New Requests** are requests with status `submitted`.
+- "Today" starts at midnight India time.
+- Top requested plants (up to 5) count every order request regardless of status, ranked by
+  number of requests, then total quantity, using the name from the most recent request.
+- Active plants are active and not deleted; out of stock is a subset of those.
