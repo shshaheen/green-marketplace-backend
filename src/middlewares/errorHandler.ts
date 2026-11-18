@@ -1,5 +1,6 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import mongoose from 'mongoose';
+import multer from 'multer';
 import { ZodError } from 'zod';
 import { ApiError, ErrorCode } from '../utils/ApiError.js';
 import { sendError } from '../utils/apiResponse.js';
@@ -37,6 +38,21 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     if (err.type === 'entity.too.large') {
       return sendError(res, 413, ErrorCode.PAYLOAD_TOO_LARGE, 'Request body is too large');
     }
+  }
+
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return sendError(res, 413, ErrorCode.PAYLOAD_TOO_LARGE, 'Each image must be 5 MB or smaller');
+    }
+    if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return sendError(
+        res,
+        400,
+        ErrorCode.BAD_REQUEST,
+        'Too many files, or files in an unexpected field',
+      );
+    }
+    return sendError(res, 400, ErrorCode.BAD_REQUEST, err.message);
   }
 
   if (err instanceof mongoose.Error.CastError) {

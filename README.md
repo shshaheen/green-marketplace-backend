@@ -98,3 +98,65 @@ Two levels: top-level categories (`parent: null`) and subcategories under them.
 - Deleting is refused while the category has subcategories. Deleted categories are hidden
   everywhere unless `includeDeleted=true`.
 - Deactivating a category also hides its subcategories from the public tree.
+
+## Plants
+
+Prices are **indicative** and given in whole **paise** (`{ "amount": 25000, "currency": "INR" }`
+is ₹250). Price units: `per_plant`, `per_pot`, `per_bag`, `per_dozen`. Availability:
+`in_stock`, `limited`, `out_of_stock`.
+
+### Public
+
+| Method | Path                       | Notes                                                                                  |
+| ------ | -------------------------- | -------------------------------------------------------------------------------------- |
+| GET    | `/api/v1/plants`           | `?category=&subcategory=&search=&availability=&minPrice=&maxPrice=&sort=&page=&limit=` |
+| GET    | `/api/v1/plants/:idOrSlug` | Full details: description, all images, attributes                                      |
+
+`sort` is one of `-createdAt` (default), `createdAt`, `price`, `-price`, `name`, `-name`.
+Customers only see active plants whose category (and subcategory, if any) is active.
+List items carry only the main image; details carry all of them.
+
+### Admin
+
+| Method | Path                                       | Notes                                                  |
+| ------ | ------------------------------------------ | ------------------------------------------------------ |
+| GET    | `/api/v1/admin/plants`                     | Public filters plus `?isActive=&includeDeleted=`       |
+| POST   | `/api/v1/admin/plants`                     | JSON body (see below)                                  |
+| GET    | `/api/v1/admin/plants/:id`                 |                                                        |
+| PATCH  | `/api/v1/admin/plants/:id`                 | Any create field except `isActive`                     |
+| PATCH  | `/api/v1/admin/plants/:id/status`          | `{ isActive }`                                         |
+| DELETE | `/api/v1/admin/plants/:id`                 | Soft delete                                            |
+| POST   | `/api/v1/admin/plants/:id/images`          | `multipart/form-data`, files in the `images` field     |
+| PATCH  | `/api/v1/admin/plants/:id/images/order`    | `{ imageIds: [...] }`, every image id in the new order |
+| DELETE | `/api/v1/admin/plants/:id/images/:imageId` | Removes from the plant and from Cloudinary             |
+
+Create body:
+
+```json
+{
+  "name": "Jade Plant",
+  "description": "Hardy succulent",
+  "category": "<top-level category id>",
+  "subcategory": "<subcategory id or null>",
+  "price": { "amount": 25000 },
+  "priceUnit": "per_pot",
+  "minOrderQty": 10,
+  "availability": "in_stock",
+  "attributes": {
+    "height": { "min": 1, "max": 2, "unit": "ft" },
+    "sunlight": "indirect_light",
+    "watering": "Once a week"
+  },
+  "isActive": true
+}
+```
+
+- `category` must be a top-level category and `subcategory` one of its subcategories.
+  When changing `category`, send `subcategory` too (or `null`).
+- `attributes` in a PATCH replaces the whole attributes object. Sunlight values:
+  `full_sun`, `partial_shade`, `full_shade`, `indirect_light`.
+- Images: JPEG, PNG or WebP, up to 5 MB each and 10 per plant. File contents are checked,
+  not just the declared type. The first image is the main one.
+- Deleting a plant keeps its images in Cloudinary so existing enquiries can still show them.
+- A category cannot be deleted or moved while non-deleted plants use it.
+- Without Cloudinary settings (allowed outside production) image uploads return 503.

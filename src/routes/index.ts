@@ -5,6 +5,7 @@ import {
   createAdminCategoryRouter,
   createPublicCategoryRouter,
 } from '../modules/category/category.routes.js';
+import { createAdminPlantRouter, createPublicPlantRouter } from '../modules/plant/plant.routes.js';
 
 /** Mounted at /api/v1. Public routes live at the root, admin routes under /admin. */
 export function createApiRouter(): Router {
@@ -12,10 +13,12 @@ export function createApiRouter(): Router {
 
   // Public
   router.use('/categories', createPublicCategoryRouter());
+  router.use('/plants', createPublicPlantRouter());
 
   // Admin (auth endpoints handle their own authentication)
   router.use('/admin/auth', createAuthRouter());
   router.use('/admin/categories', authenticate, createAdminCategoryRouter());
+  router.use('/admin/plants', authenticate, createAdminPlantRouter());
 
   return router;
 }

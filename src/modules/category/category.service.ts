@@ -3,6 +3,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { buildPaginationMeta, getSkip, type PaginationMeta } from '../../utils/pagination.js';
 import { generateUniqueSlug } from '../../utils/slug.js';
 import { escapeRegex } from '../../utils/validators.js';
+import { Plant } from '../plant/plant.model.js';
 import { Category, type CategoryAttrs, type CategoryRecord } from './category.model.js';
 import type {
   CreateCategoryInput,
@@ -146,6 +147,13 @@ async function hasSubcategories(id: Types.ObjectId): Promise<boolean> {
   return Boolean(await Category.exists({ parent: id, ...NOT_DELETED }));
 }
 
+/** True if any non-deleted plant uses this category as its category or subcategory. */
+async function hasPlants(id: Types.ObjectId): Promise<boolean> {
+  return Boolean(
+    await Plant.exists({ $or: [{ category: id }, { subcategory: id }], deletedAt: null }),
+  );
+}
+
 // ── Admin operations ───────────────────────────────────────────────────────
 
 export async function createCategory(
@@ -215,6 +223,13 @@ export async function updateCategory(
   const name = input.name ?? category.name;
   const nameChanged = input.name !== undefined && input.name !== category.name;
   const parentChanged = String(parent) !== String(category.parent ?? null);
+
+  // Moving would leave plants pointing at a category/subcategory pair that no longer matches.
+  if (parentChanged && (await hasPlants(category._id))) {
+    throw ApiError.conflict(
+      'Plants are assigned to this category, so it cannot be moved. Reassign them first.',
+    );
+  }
   if (nameChanged || parentChanged) await assertNameAvailable(name, parent, category._id);
 
   if (nameChanged) {
@@ -238,11 +253,68 @@ export async function deleteCategory(id: string, adminId: string): Promise<void>
   if (await hasSubcategories(category._id)) {
     throw ApiError.conflict('Delete or move this category’s subcategories first');
   }
+  if (await hasPlants(category._id)) {
+    throw ApiError.conflict('Plants are assigned to this category. Reassign or delete them first.');
+  }
 
   category.deletedAt = new Date();
   category.isActive = false;
   category.set('updatedBy', adminId);
   await category.save();
+}
+
+// ── Used by the plant module ───────────────────────────────────────────────
+
+/**
+ * Checks a plant's category assignment: `categoryId` must be an existing
+ * top-level category, and `subcategoryId` (if any) one of its subcategories.
+ * Inactive categories are allowed so admins can prepare a catalogue section.
+ */
+export async function assertValidPlantCategories(
+  categoryId: string,
+  subcategoryId: string | null,
+): Promise<void> {
+  const category = await Category.findOne({ _id: categoryId, ...NOT_DELETED })
+    .select('parent')
+    .lean();
+  if (!category) {
+    throw ApiError.badRequest('Category not found', [
+      { field: 'category', message: 'Category not found' },
+    ]);
+  }
+  if (category.parent) {
+    throw ApiError.badRequest('Category must be a top-level category', [
+      { field: 'category', message: 'Use a top-level category here and set the subcategory' },
+    ]);
+  }
+
+  if (subcategoryId === null) return;
+  const subcategory = await Category.findOne({ _id: subcategoryId, ...NOT_DELETED })
+    .select('parent')
+    .lean();
+  if (!subcategory || String(subcategory.parent) !== categoryId) {
+    throw ApiError.badRequest('Subcategory does not belong to the selected category', [
+      { field: 'subcategory', message: 'Subcategory does not belong to the selected category' },
+    ]);
+  }
+}
+
+/**
+ * Ids of categories customers can see: active, not deleted, and (for a
+ * subcategory) under a visible parent.
+ */
+export async function getVisibleCategoryIds(): Promise<Set<string>> {
+  const records = await Category.find({ isActive: true, ...NOT_DELETED })
+    .select('parent')
+    .lean();
+  const visibleRoots = new Set(records.filter((r) => !r.parent).map((r) => r._id.toString()));
+  const visible = new Set(visibleRoots);
+  for (const record of records) {
+    if (record.parent && visibleRoots.has(record.parent.toString())) {
+      visible.add(record._id.toString());
+    }
+  }
+  return visible;
 }
 
 // ── Public operations ──────────────────────────────────────────────────────

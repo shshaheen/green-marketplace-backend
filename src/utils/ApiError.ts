@@ -9,6 +9,7 @@ export const ErrorCode = {
   PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
   TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -52,5 +53,9 @@ export class ApiError extends Error {
 
   static conflict(message: string): ApiError {
     return new ApiError(409, ErrorCode.CONFLICT, message);
+  }
+
+  static serviceUnavailable(message: string): ApiError {
+    return new ApiError(503, ErrorCode.SERVICE_UNAVAILABLE, message);
   }
 }
