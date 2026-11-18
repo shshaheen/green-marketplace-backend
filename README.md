@@ -266,3 +266,23 @@ final. Every change is recorded in `statusHistory` with who made it and when.
 - Top requested plants (up to 5) count every order request regardless of status, ranked by
   number of requests, then total quantity, using the name from the most recent request.
 - Active plants are active and not deleted; out of stock is a subset of those.
+
+## Postman
+
+The `postman/` folder has a collection covering every endpoint, plus environments for
+local, dev and prod.
+
+1. In Postman, **Import** `postman/green-marketplace.postman_collection.json` and the
+   environment you need (`local.postman_environment.json` for `http://localhost:4000`).
+2. Select the environment. Set `adminEmail` and `adminPassword` in the **Current value**
+   column only. Current values stay on your machine and are never synced or exported.
+3. Run **Admin Auth → Login**. The tokens are saved automatically and every admin request
+   uses them. When the access token expires (15 minutes), run **Refresh tokens**.
+
+Requests that create something save its id for the next ones (`categoryId`, `plantId`,
+`trackingToken`, `orderRequestId`, …), so you can go top to bottom: create a category and
+subcategory, create a plant, upload images (pick files in the Body tab), submit an order
+request, then manage it as admin. Destructive requests live in **Cleanup (run last)**.
+
+For dev and prod, update `baseUrl` in those environments once the servers have domains. The
+committed environment files contain no credentials; keep it that way.
