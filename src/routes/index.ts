@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/authenticate.js';
 import { createAuthRouter } from '../modules/auth/auth.routes.js';
+import { createCustomerAuthRouter } from '../modules/customer/customer.routes.js';
 import {
   createAdminCategoryRouter,
   createPublicCategoryRouter,
@@ -16,13 +17,19 @@ import { createAdminPlantRouter, createPublicPlantRouter } from '../modules/plan
 export function createApiRouter(): Router {
   const router = Router();
 
-  // Public / customer
+  // Public / customer catalogue & order requests
   router.use('/categories', createPublicCategoryRouter());
   router.use('/plants', createPublicPlantRouter());
   router.use('/order-requests', createCustomerOrderRequestRouter());
 
-  // Admin (auth endpoints handle their own authentication)
+  // Customer authentication
+  router.use('/auth/customer', createCustomerAuthRouter());
+
+  // Admin authentication (mounted at /auth/admin and aliased at /admin/auth for backward compatibility)
+  router.use('/auth/admin', createAuthRouter());
   router.use('/admin/auth', createAuthRouter());
+
+  // Protected admin routes
   router.use('/admin/categories', authenticate, createAdminCategoryRouter());
   router.use('/admin/plants', authenticate, createAdminPlantRouter());
   router.use('/admin/order-requests', authenticate, createAdminOrderRequestRouter());

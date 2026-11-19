@@ -60,23 +60,78 @@ HTTP; business rules live in services.
 - Lists accept `?page=` (default 1) and `?limit=` (default 20, max 100).
 - Request bodies are validated with strict Zod schemas; unknown fields are rejected.
 
+## Customer authentication
+
+Customer accounts are registered via email OTP verification and protected with a 6-digit MPIN.
+
+| Method | Path                                          | Body                                              | Auth   | Notes                                       |
+| ------ | --------------------------------------------- | ------------------------------------------------- | ------ | ------------------------------------------- |
+| POST   | `/api/v1/auth/customer/register/send-otp`     | `{ email }`                                       | —      | Sends 6-digit OTP via Resend (5m TTL)       |
+| POST   | `/api/v1/auth/customer/register/verify-otp`   | `{ email, otp }`                                  | —      | Max 5 attempts; returns `verificationToken` |
+| POST   | `/api/v1/auth/customer/register/set-pin`      | `{ email, verificationToken, mpin, confirmMpin }` | —      | Creates customer; returns token pair        |
+| POST   | `/api/v1/auth/customer/login`                 | `{ email, mpin }`                                 | —      | Account lockout after 5 failed attempts     |
+| POST   | `/api/v1/auth/customer/forgot-pin/send-otp`   | `{ email }`                                       | —      | Sends reset OTP via Resend                  |
+| POST   | `/api/v1/auth/customer/forgot-pin/verify-otp` | `{ email, otp }`                                  | —      | Returns `verificationToken`                 |
+| POST   | `/api/v1/auth/customer/forgot-pin/reset`      | `{ email, verificationToken, mpin, confirmMpin }` | —      | Resets MPIN; revokes existing sessions      |
+| POST   | `/api/v1/auth/customer/refresh`               | `{ refreshToken }`                                | —      | Rotates refresh token                       |
+| POST   | `/api/v1/auth/customer/logout`                | `{ refreshToken }`                                | —      | Revokes refresh token                       |
+| GET    | `/api/v1/auth/customer/me`                    | —                                                 | Bearer | Returns authenticated customer profile      |
+
+## Customer authentication
+
+Customer accounts are registered via email OTP verification and protected with a 6-digit MPIN.
+
+| Method | Path                                      | Body                                                 | Auth   | Notes                                  |
+| ------ | ----------------------------------------- | ---------------------------------------------------- | ------ | -------------------------------------- |
+| POST   | `/api/v1/auth/customer/register/send-otp` | `{ email }`                                          | —      | Sends 6-digit OTP via Resend (5m TTL)  |
+| POST   | `/api/v1/auth/customer/register/verify-otp`| `{ email, otp }`                                    | —      | Max 5 attempts; returns `verificationToken` |
+| POST   | `/api/v1/auth/customer/register/set-pin`  | `{ email, verificationToken, mpin, confirmMpin }`    | —      | Creates customer; returns token pair   |
+| POST   | `/api/v1/auth/customer/login`             | `{ email, mpin }`                                    | —      | Account lockout after 5 failed attempts|
+| POST   | `/api/v1/auth/customer/forgot-pin/send-otp`| `{ email }`                                         | —      | Sends reset OTP via Resend             |
+| POST   | `/api/v1/auth/customer/forgot-pin/verify-otp`| `{ email, otp }`                                  | —      | Returns `verificationToken`            |
+| POST   | `/api/v1/auth/customer/forgot-pin/reset`  | `{ email, verificationToken, mpin, confirmMpin }`    | —      | Resets MPIN; revokes existing sessions |
+| POST   | `/api/v1/auth/customer/refresh`           | `{ refreshToken }`                                   | —      | Rotates refresh token                  |
+| POST   | `/api/v1/auth/customer/logout`            | `{ refreshToken }`                                   | —      | Revokes refresh token                  |
+| GET    | `/api/v1/auth/customer/me`                | —                                                    | Bearer | Returns authenticated customer profile |
+
 ## Admin authentication
 
-There is no public registration. Admins are created with `npm run seed:admin`.
+There is no public registration. Admins are pre-created with `npm run seed:admin`. Admins set an initial 6-digit MPIN via email OTP verification, or log in with their pre-existing password or MPIN.
 
-| Method | Path                         | Body                  | Auth   |
-| ------ | ---------------------------- | --------------------- | ------ |
-| POST   | `/api/v1/admin/auth/login`   | `{ email, password }` | —      |
-| POST   | `/api/v1/admin/auth/refresh` | `{ refreshToken }`    | —      |
-| POST   | `/api/v1/admin/auth/logout`  | `{ refreshToken }`    | —      |
-| GET    | `/api/v1/admin/auth/me`      | —                     | Bearer |
+Endpoints are mounted at `/api/v1/auth/admin/*` and aliased at `/api/v1/admin/auth/*`.
+
+| Method | Path                                        | Body                                              | Auth   | Notes                                  |
+| ------ | ------------------------------------------- | ------------------------------------------------- | ------ | -------------------------------------- |
+| POST   | `/api/v1/auth/admin/login`                  | `{ email, mpin }` or `{ email, password }`        | —      | Lockout after 5 failed attempts        |
+| POST   | `/api/v1/auth/admin/initial-pin/send-otp`   | `{ email }`                                       | —      | Verified against pre-created admin     |
+| POST   | `/api/v1/auth/admin/initial-pin/verify-otp` | `{ email, otp }`                                  | —      | Returns `verificationToken`            |
+| POST   | `/api/v1/auth/admin/initial-pin/set-pin`    | `{ email, verificationToken, mpin, confirmMpin }` | —      | Sets initial MPIN; returns token pair  |
+| POST   | `/api/v1/auth/admin/forgot-pin/send-otp`    | `{ email }`                                       | —      | Sends reset OTP via Resend             |
+| POST   | `/api/v1/auth/admin/forgot-pin/verify-otp`  | `{ email, otp }`                                  | —      | Returns `verificationToken`            |
+| POST   | `/api/v1/auth/admin/forgot-pin/reset`       | `{ email, verificationToken, mpin, confirmMpin }` | —      | Resets MPIN; revokes existing sessions |
+| POST   | `/api/v1/auth/admin/refresh`                | `{ refreshToken }`                                | —      | Rotates refresh token                  |
+| POST   | `/api/v1/auth/admin/logout`                 | `{ refreshToken }`                                | —      | Revokes refresh token                  |
+| GET    | `/api/v1/auth/admin/me`                     | —                                                 | Bearer | Returns authenticated admin profile    |
+
+| Method | Path                                   | Body                                              | Auth   | Notes                                  |
+| ------ | -------------------------------------- | ------------------------------------------------- | ------ | -------------------------------------- |
+| POST   | `/api/v1/auth/admin/login`             | `{ email, mpin }` or `{ email, password }`        | —      | Lockout after 5 failed attempts        |
+| POST   | `/api/v1/auth/admin/initial-pin/send-otp` | `{ email }`                                    | —      | Verified against pre-created admin     |
+| POST   | `/api/v1/auth/admin/initial-pin/verify-otp`| `{ email, otp }`                                | —      | Returns `verificationToken`            |
+| POST   | `/api/v1/auth/admin/initial-pin/set-pin` | `{ email, verificationToken, mpin, confirmMpin }` | —      | Sets initial MPIN; returns token pair  |
+| POST   | `/api/v1/auth/admin/forgot-pin/send-otp`  | `{ email }`                                    | —      | Sends reset OTP via Resend             |
+| POST   | `/api/v1/auth/admin/forgot-pin/verify-otp`| `{ email, otp }`                               | —      | Returns `verificationToken`            |
+| POST   | `/api/v1/auth/admin/forgot-pin/reset`   | `{ email, verificationToken, mpin, confirmMpin }` | —      | Resets MPIN; revokes existing sessions |
+| POST   | `/api/v1/auth/admin/refresh`            | `{ refreshToken }`                                | —      | Rotates refresh token                  |
+| POST   | `/api/v1/auth/admin/logout`             | `{ refreshToken }`                                | —      | Revokes refresh token                  |
+| GET    | `/api/v1/auth/admin/me`                 | —                                                 | Bearer | Returns authenticated admin profile    |
 
 - Access tokens are JWTs valid for 15 minutes (`JWT_ACCESS_TTL_SECONDS`). Send them as
-  `Authorization: Bearer <token>`.
+  `Authorization: Bearer <token>`. Customer and admin tokens carry distinct cryptographic audiences.
 - Refresh tokens are opaque, valid for 7 days (`REFRESH_TOKEN_TTL_DAYS`), single-use, and
   stored only as SHA-256 hashes. Each refresh returns a new pair.
-- Failed logins are limited to 5 per IP and email every 15 minutes.
-- Deactivating an admin (`isActive: false`) blocks them immediately, even with a valid token.
+- Failed logins are limited to 5 per IP and email every 15 minutes, with database-level account lockout after 5 consecutive failures.
+- Deactivating an account (`isActive: false`) blocks them immediately, even with a valid token.
 
 ## Categories
 

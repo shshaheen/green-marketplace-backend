@@ -30,10 +30,10 @@ add `nurseryId` or multi-tenant code until it is requested (decided 2026-11-18).
 
 ## 2. Users
 
-| User         | Access                                                                                                                                                                                                                        |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Customer** | No account. Browses plants, submits Order Requests, tracks and cancels them with a tracking token saved on the device ("My Requests").                                                                                        |
-| **Admin**    | Predefined accounts only, created with `npm run seed:admin`. No public registration. All admins have the same permissions. Manages categories, plants, images and Order Requests. Admin UI lives in the **same Flutter app**. |
+| User         | Access                                                                                                                                                                                                                           |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Customer** | Registered via Email OTP + 6-digit MPIN. Browses catalogue, submits Order Requests, tracks and cancels requests. Session authentication via access/refresh tokens.                                                               |
+| **Admin**    | Predefined accounts only, created with `npm run seed:admin`. No public registration. Sets initial 6-digit MPIN via Email OTP. Manages categories, plants, images and Order Requests. Admin UI lives in the **same Flutter app**. |
 
 ## 3. Repositories
 
@@ -166,6 +166,7 @@ add `nurseryId` or multi-tenant code until it is requested (decided 2026-11-18).
 | 2026-11-18 | Order Requests: reference-number cancel route, admin may cancel accepted requests with a note, no step skipping, separate admin-notes endpoint, `availabilitySnapshot`, intended use as a fixed list, free-text location. |
 | 2026-11-18 | New Requests on the dashboard = status `submitted`.                                                                                                                                                                       |
 | 2026-11-18 | No AI attribution in commits/PRs; push only when asked.                                                                                                                                                                   |
+| 2026-11-19 | Email OTP + 6-digit MPIN authentication for Customer and Admin. Resend email integration. Cryptographic token audience separation. Database lockout after 5 failed login attempts. Pre-created admin initial MPIN setup.  |
 
 ## 8. Notes for the Flutter app (when it starts)
 

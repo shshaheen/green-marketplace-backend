@@ -36,6 +36,17 @@ const envSchema = z
     CLOUDINARY_API_KEY: z.string().trim().optional(),
     CLOUDINARY_API_SECRET: z.string().trim().optional(),
     CLOUDINARY_FOLDER: z.string().trim().min(1).default('green-marketplace'),
+
+    // Email delivery (Resend). Required in production.
+    RESEND_API_KEY: z.string().trim().optional(),
+    EMAIL_FROM: z.string().trim().default('Green Marketplace <no-reply@resend.dev>'),
+
+    // Authentication & OTP parameters
+    OTP_EXPIRY_MINUTES: z.coerce.number().int().min(1).max(30).default(5),
+    OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(10).max(300).default(60),
+    OTP_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
+    LOCKOUT_DURATION_MINUTES: z.coerce.number().int().min(1).max(120).default(15),
+    MAX_FAILED_LOGIN_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== 'production') return;
@@ -43,6 +54,7 @@ const envSchema = z
       'CLOUDINARY_CLOUD_NAME',
       'CLOUDINARY_API_KEY',
       'CLOUDINARY_API_SECRET',
+      'RESEND_API_KEY',
     ] as const) {
       if (!value[key])
         ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required in production` });

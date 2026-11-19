@@ -57,7 +57,7 @@ export function createCustomerActionLimiter() {
   return perIpLimiter(FIFTEEN_MINUTES, 60);
 }
 
-/** Failed admin logins, keyed by IP + email. Successful logins are not counted. */
+/** Failed logins (admin or customer), keyed by IP + email. Successful logins are not counted. */
 export function createLoginLimiter() {
   return rateLimit({
     windowMs: FIFTEEN_MINUTES,
@@ -72,4 +72,30 @@ export function createLoginLimiter() {
     },
     handler: tooManyRequests,
   });
+}
+
+/** Limits OTP requests per IP + email to prevent inbox spamming. */
+export function createOtpSendLimiter() {
+  return rateLimit({
+    windowMs: FIFTEEN_MINUTES,
+    limit: 5,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const rawEmail: unknown = req.body?.email;
+      const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase().slice(0, 254) : '';
+      return `${clientIp(req)}:${email}`;
+    },
+    handler: tooManyRequests,
+  });
+}
+
+/** Limits OTP verification attempts per IP. */
+export function createOtpVerifyLimiter() {
+  return perIpLimiter(FIFTEEN_MINUTES, 15);
+}
+
+/** Limits MPIN setup/reset requests per IP. */
+export function createPinActionLimiter() {
+  return perIpLimiter(FIFTEEN_MINUTES, 10);
 }

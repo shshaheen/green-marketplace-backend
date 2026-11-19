@@ -1,6 +1,13 @@
 import request from 'supertest';
 import type { Express } from 'express';
 import { createAdmin } from '../src/modules/admin/admin.service.js';
+import { Customer } from '../src/modules/customer/customer.model.js';
+import { hashPassword } from '../src/modules/auth/password.js';
+import {
+  FakeEmailService,
+  getEmailService,
+  setEmailService,
+} from '../src/modules/email/email.service.js';
 import type { ImageStorage } from '../src/modules/upload/imageStorage.js';
 
 /** Smallest valid-looking PNG: the 8-byte signature plus padding. */
@@ -34,12 +41,47 @@ export function createFakeImageStorage() {
 }
 
 export const TEST_PASSWORD = 'correct-horse-battery';
+export const TEST_MPIN = '123456';
 
-export async function createTestAdmin(overrides: { email?: string; name?: string } = {}) {
-  return createAdmin({
+export function getTestEmailService(): FakeEmailService {
+  const current = getEmailService();
+  if (current instanceof FakeEmailService) {
+    return current;
+  }
+  const fake = new FakeEmailService();
+  setEmailService(fake);
+  return fake;
+}
+
+export async function createTestAdmin(
+  overrides: { email?: string; name?: string; mpin?: string } = {},
+) {
+  const admin = await createAdmin({
     name: overrides.name ?? 'Test Admin',
     email: overrides.email ?? 'admin@example.com',
     password: TEST_PASSWORD,
+  });
+
+  if (overrides.mpin) {
+    const { Admin } = await import('../src/modules/admin/admin.model.js');
+    await Admin.findByIdAndUpdate(admin.id, {
+      mpinHash: await hashPassword(overrides.mpin),
+      isInitialPinSet: true,
+    });
+  }
+
+  return admin;
+}
+
+export async function createTestCustomer(
+  overrides: { email?: string; mpin?: string; isActive?: boolean } = {},
+) {
+  return Customer.create({
+    email: overrides.email ?? 'customer@example.com',
+    mpinHash: await hashPassword(overrides.mpin ?? TEST_MPIN),
+    role: 'customer',
+    isEmailVerified: true,
+    isActive: overrides.isActive ?? true,
   });
 }
 
@@ -52,5 +94,21 @@ export async function loginAs(app: Express, email = 'admin@example.com') {
     accessToken: string;
     refreshToken: string;
     admin: { id: string; email: string };
+  };
+}
+
+export async function loginCustomerAs(
+  app: Express,
+  email = 'customer@example.com',
+  mpin = TEST_MPIN,
+) {
+  const res = await request(app)
+    .post('/api/v1/auth/customer/login')
+    .send({ email, mpin })
+    .expect(200);
+  return res.body.data as {
+    accessToken: string;
+    refreshToken: string;
+    customer: { id: string; email: string };
   };
 }
