@@ -198,33 +198,77 @@ describe('customer authentication', () => {
       expect(JSON.stringify(res.body.data)).not.toContain('mpinHash');
     });
 
-    it('returns generic error on wrong MPIN or unknown email', async () => {
+    it('returns specific error for wrong MPIN with remaining attempts', async () => {
       await createTestCustomer({ email: 'login@example.com', mpin: '112233' });
 
-      const wrongPin = await request(app)
+      const res = await request(app)
         .post(LOGIN)
         .send({ email: 'login@example.com', mpin: '999999' })
         .expect(401);
 
-      const unknownEmail = await request(app)
+      expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
+      expect(res.body.error.message).toContain('Incorrect MPIN');
+      expect(res.body.error.message).toContain('attempt(s) remaining');
+    });
+
+    it('returns specific error for unknown email', async () => {
+      const res = await request(app)
         .post(LOGIN)
         .send({ email: 'nobody@example.com', mpin: '112233' })
-        .expect(401);
+        .expect(404);
 
-      expect(wrongPin.body).toEqual(unknownEmail.body);
-      expect(wrongPin.body.error.code).toBe('INVALID_CREDENTIALS');
+      expect(res.body.error.code).toBe('NOT_FOUND');
+      expect(res.body.error.message).toContain('No account found');
+    });
+
+    it('returns specific error for deactivated account', async () => {
+      await createTestCustomer({ email: 'deactivated@example.com', mpin: '112233' });
+      await Customer.updateOne({ email: 'deactivated@example.com' }, { isActive: false });
+
+      const res = await request(app)
+        .post(LOGIN)
+        .send({ email: 'deactivated@example.com', mpin: '112233' })
+        .expect(403);
+
+      expect(res.body.error.code).toBe('FORBIDDEN');
+      expect(res.body.error.message).toContain('deactivated');
+    });
+
+    it('returns specific error for unverified email', async () => {
+      await createTestCustomer({ email: 'unverified@example.com', mpin: '112233' });
+      await Customer.updateOne({ email: 'unverified@example.com' }, { isEmailVerified: false });
+
+      const res = await request(app)
+        .post(LOGIN)
+        .send({ email: 'unverified@example.com', mpin: '112233' })
+        .expect(403);
+
+      expect(res.body.error.code).toBe('FORBIDDEN');
+      expect(res.body.error.message).toContain('email is not verified');
     });
 
     it('locks account after 5 consecutive failed login attempts', async () => {
       const email = 'lockout@example.com';
       await createTestCustomer({ email, mpin: '123456' });
 
-      for (let i = 0; i < 5; i++) {
-        await request(app).post(LOGIN).send({ email, mpin: '000000' }).expect(401);
+      // First 4 attempts show remaining count
+      for (let i = 1; i <= 4; i++) {
+        const res = await request(app)
+          .post(LOGIN)
+          .send({ email, mpin: '000000' })
+          .expect(401);
+        expect(res.body.error.message).toContain(`${5 - i} attempt(s) remaining`);
       }
 
-      // Account is locked in the database. Even from a fresh IP / app instance,
-      // login is blocked with 403 FORBIDDEN.
+      // 5th attempt triggers immediate lockout
+      const lockRes = await request(app)
+        .post(LOGIN)
+        .send({ email, mpin: '000000' })
+        .expect(403);
+      expect(lockRes.body.error.code).toBe('FORBIDDEN');
+      expect(lockRes.body.error.message).toContain('Account is temporarily locked');
+
+      // Even from a fresh IP / app instance, login is blocked with 403 FORBIDDEN.
       const freshApp = createApp();
       const lockedRes = await request(freshApp)
         .post(LOGIN)

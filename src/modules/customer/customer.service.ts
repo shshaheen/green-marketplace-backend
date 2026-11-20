@@ -17,9 +17,6 @@ import {
 } from '../auth/otp.service.js';
 import { Customer, toPublicCustomer, type PublicCustomer } from './customer.model.js';
 
-const invalidCredentials = () =>
-  new ApiError(401, ErrorCode.INVALID_CREDENTIALS, 'Invalid email or MPIN');
-
 const invalidRefreshToken = () => ApiError.unauthorized('Invalid or expired refresh token');
 
 async function issueTokens(customerId: string, meta: RequestMeta): Promise<TokenPair> {
@@ -120,9 +117,20 @@ export async function loginCustomer(
   meta: RequestMeta,
 ): Promise<CustomerLoginResult> {
   const customer = await Customer.findOne({ email }).select('+mpinHash');
-
   const now = new Date();
-  if (customer?.lockoutUntil && customer.lockoutUntil > now) {
+
+  // No account found
+  if (!customer) {
+    await verifyAgainstDummy(mpin);
+    throw new ApiError(
+      404,
+      ErrorCode.NOT_FOUND,
+      'No account found with this email. Please register.',
+    );
+  }
+
+  // Account locked
+  if (customer.lockoutUntil && customer.lockoutUntil > now) {
     const minutesRemaining = Math.max(
       1,
       Math.ceil((customer.lockoutUntil.getTime() - now.getTime()) / (60 * 1000)),
@@ -134,20 +142,48 @@ export async function loginCustomer(
     );
   }
 
-  const mpinOk = customer
-    ? await verifyPassword(mpin, customer.mpinHash)
-    : await verifyAgainstDummy(mpin);
+  // Account deactivated
+  if (!customer.isActive) {
+    await verifyAgainstDummy(mpin);
+    throw new ApiError(
+      403,
+      ErrorCode.FORBIDDEN,
+      'Your account has been deactivated. Please contact support.',
+    );
+  }
 
-  if (!customer || !mpinOk || !customer.isActive) {
-    if (customer && customer.isActive) {
-      customer.failedLoginAttempts += 1;
-      if (customer.failedLoginAttempts >= env.MAX_FAILED_LOGIN_ATTEMPTS) {
-        customer.lockoutUntil = new Date(now.getTime() + env.LOCKOUT_DURATION_MINUTES * 60 * 1000);
-        customer.failedLoginAttempts = 0;
-      }
+  // Email not verified
+  if (!customer.isEmailVerified) {
+    await verifyAgainstDummy(mpin);
+    throw new ApiError(
+      403,
+      ErrorCode.FORBIDDEN,
+      'Your email is not verified. Please complete registration.',
+    );
+  }
+
+  // Verify MPIN
+  const mpinOk = await verifyPassword(mpin, customer.mpinHash);
+
+  if (!mpinOk) {
+    customer.failedLoginAttempts += 1;
+    if (customer.failedLoginAttempts >= env.MAX_FAILED_LOGIN_ATTEMPTS) {
+      customer.lockoutUntil = new Date(now.getTime() + env.LOCKOUT_DURATION_MINUTES * 60 * 1000);
+      customer.failedLoginAttempts = 0;
       await customer.save();
+      throw new ApiError(
+        403,
+        ErrorCode.FORBIDDEN,
+        `Account is temporarily locked due to repeated failed login attempts. Please try again in ${String(env.LOCKOUT_DURATION_MINUTES)} minute(s) or reset your MPIN.`,
+      );
     }
-    throw invalidCredentials();
+    await customer.save();
+    const remaining = env.MAX_FAILED_LOGIN_ATTEMPTS - customer.failedLoginAttempts;
+    throw new ApiError(
+      401,
+      ErrorCode.INVALID_CREDENTIALS,
+      `Incorrect MPIN. ${String(remaining)} attempt(s) remaining before account lockout.`,
+    );
   }
 
   customer.failedLoginAttempts = 0;
